@@ -166,6 +166,8 @@ extern crate bitflags;
 extern crate byteorder;
 #[macro_use]
 extern crate diesel_derives;
+#[macro_use]
+extern crate tracing;
 #[doc(hidden)]
 pub use diesel_derives::*;
 
