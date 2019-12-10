@@ -1,6 +1,7 @@
 extern crate pq_sys;
 
 use std::ffi::CString;
+use std::hash::{Hash, Hasher};
 use std::os::raw as libc;
 use std::ptr;
 
