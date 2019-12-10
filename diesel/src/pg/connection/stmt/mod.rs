@@ -24,8 +24,8 @@ impl Statement {
         conn: &RawConnection,
         param_data: &Vec<Option<Vec<u8>>>,
     ) -> QueryResult<PgResult> {
-        // let sql_span = debug_span!("execute", sql_hash = self.sql_hash.as_str(), name = ?self.name);
-        // let _guard = sql_span.enter();
+        let sql_span = debug_span!("execute", sql_hash = self.sql_hash.as_str(), name = ?self.name);
+        let _guard = sql_span.enter();
 
         let params_pointer = param_data
             .iter()
@@ -65,8 +65,7 @@ impl Statement {
         sql.hash(&mut hasher);
         let sql_hash = format!("{:?}", hasher.finish());
 
-        // info!(target: "prepare", sql, sql_hash = sql_hash.as_str(), ?param_types, ?name);
-        info!("prepare");
+        info!(target: "prepare", sql, sql_hash = sql_hash.as_str(), ?param_types, ?name);
 
         let name = CString::new(name.unwrap_or(""))?;
         let sql = CString::new(sql)?;
