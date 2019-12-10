@@ -180,6 +180,7 @@ where
 {
     let migrations_dir = find_migrations_directory()?;
     let all_migrations = migrations_in_directory(&migrations_dir)?;
+    setup_database(conn)?;
     let already_run = conn.previously_run_migration_versions()?;
 
     let pending = all_migrations
@@ -225,7 +226,7 @@ pub fn revert_migration_with_version<Conn: Connection>(
     output: &mut dyn Write,
 ) -> Result<(), RunMigrationsError> {
     migration_with_version(migrations_dir, ver)
-        .map_err(|e| e.into())
+        .map_err(Into::into)
         .and_then(|m| revert_migration(conn, &m, output))
 }
 
@@ -240,7 +241,7 @@ where
     Conn: MigrationConnection,
 {
     migration_with_version(migrations_dir, ver)
-        .map_err(|e| e.into())
+        .map_err(Into::into)
         .and_then(|m| run_migration(conn, &*m, output))
 }
 
@@ -257,17 +258,8 @@ fn migration_with_version(
 }
 
 #[doc(hidden)]
-pub fn setup_database<Conn: Connection>(conn: &Conn) -> QueryResult<usize> {
-    create_schema_migrations_table_if_needed(conn)
-}
-
-fn create_schema_migrations_table_if_needed<Conn: Connection>(conn: &Conn) -> QueryResult<usize> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS __diesel_schema_migrations (\
-         version VARCHAR(50) PRIMARY KEY NOT NULL,\
-         run_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\
-         )",
-    )
+pub fn setup_database<Conn: MigrationConnection>(conn: &Conn) -> QueryResult<usize> {
+    conn.setup()
 }
 
 #[doc(hidden)]

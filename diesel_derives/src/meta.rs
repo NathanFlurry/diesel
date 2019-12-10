@@ -59,7 +59,7 @@ impl MetaItem {
     }
 
     pub fn expect_bool_value(&self) -> bool {
-        match self.str_value().as_ref().map(|s| s.as_str()) {
+        match self.str_value().as_ref().map(String::as_str) {
             Ok("true") => true,
             Ok("false") => false,
             _ => {
@@ -167,7 +167,7 @@ impl MetaItem {
         })
     }
 
-    fn str_value(&self) -> Result<String, Diagnostic> {
+    pub fn str_value(&self) -> Result<String, Diagnostic> {
         self.lit_str_value().map(syn::LitStr::value)
     }
 
@@ -244,7 +244,6 @@ impl MetaItem {
     }
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)] // https://github.com/rust-lang-nursery/rustfmt/issues/2392
 pub struct Nested<'a>(syn::punctuated::Iter<'a, syn::NestedMeta>);
 
 impl<'a> Iterator for Nested<'a> {

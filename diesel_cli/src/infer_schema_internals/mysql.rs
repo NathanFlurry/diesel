@@ -1,5 +1,6 @@
 use diesel::mysql::Mysql;
 use diesel::*;
+use heck::CamelCase;
 use std::error::Error;
 
 use super::data_structures::*;
@@ -61,16 +62,18 @@ pub fn load_foreign_key_constraints(
             kcu::column_name,
             kcu::referenced_column_name,
         ))
-        .load::<(TableName, TableName, _, _)>(connection)?
+        .load::<(TableName, TableName, String, _)>(connection)?
         .into_iter()
         .map(
             |(mut child_table, mut parent_table, foreign_key, primary_key)| {
                 child_table.strip_schema_if_matches(&default_schema);
                 parent_table.strip_schema_if_matches(&default_schema);
+
                 ForeignKeyConstraint {
                     child_table,
                     parent_table,
-                    foreign_key,
+                    foreign_key: foreign_key.clone(),
+                    foreign_key_rust_name: foreign_key,
                     primary_key,
                 }
             },
@@ -84,7 +87,7 @@ pub fn determine_column_type(attr: &ColumnInformation) -> Result<ColumnType, Box
     let unsigned = determine_unsigned(&attr.type_name);
 
     Ok(ColumnType {
-        rust_name: capitalize(tpe.trim()),
+        rust_name: tpe.trim().to_camel_case(),
         is_array: false,
         is_nullable: attr.nullable,
         is_unsigned: unsigned,
@@ -117,10 +120,6 @@ fn determine_type_name(sql_type_name: &str) -> Result<String, Box<dyn Error>> {
 
 fn determine_unsigned(sql_type_name: &str) -> bool {
     sql_type_name.to_lowercase().contains("unsigned")
-}
-
-fn capitalize(name: &str) -> String {
-    name[..1].to_uppercase() + &name[1..]
 }
 
 #[test]

@@ -4,9 +4,8 @@ use std::mem;
 use std::os::raw as libc;
 
 use super::stmt::Statement;
-use mysql::MysqlType;
+use mysql::{MysqlType, MysqlTypeMetadata, MysqlValue};
 use result::QueryResult;
-use sql_types::IsSigned;
 
 pub struct Binds {
     data: Vec<BindData>,
@@ -15,24 +14,31 @@ pub struct Binds {
 impl Binds {
     pub fn from_input_data<Iter>(input: Iter) -> Self
     where
-        Iter: IntoIterator<Item = (MysqlType, IsSigned, Option<Vec<u8>>)>,
+        Iter: IntoIterator<Item = (MysqlTypeMetadata, Option<Vec<u8>>)>,
     {
         let data = input
             .into_iter()
-            .map(|(tpe, sign, bytes)| BindData::for_input(tpe, is_signed_to_my_bool(sign), bytes))
+            .map(|(metadata, bytes)| {
+                BindData::for_input(metadata.data_type, metadata.is_unsigned as _, bytes)
+            })
             .collect();
 
-        Binds { data: data }
+        Binds { data }
     }
 
-    pub fn from_output_types(types: Vec<(MysqlType, IsSigned)>) -> Self {
+    pub fn from_output_types(types: Vec<MysqlTypeMetadata>) -> Self {
         let data = types
             .into_iter()
-            .map(|(ty, sign)| (mysql_type_to_ffi_type(ty), is_signed_to_my_bool(sign)))
+            .map(|metadata| {
+                (
+                    mysql_type_to_ffi_type(metadata.data_type),
+                    metadata.is_unsigned as _,
+                )
+            })
             .map(BindData::for_output)
             .collect();
 
-        Binds { data: data }
+        Binds { data }
     }
 
     pub fn from_result_metadata(fields: &[ffi::MYSQL_FIELD]) -> Self {
@@ -80,8 +86,8 @@ impl Binds {
         }
     }
 
-    pub fn field_data(&self, idx: usize) -> Option<&[u8]> {
-        self.data[idx].bytes()
+    pub fn field_data(&self, idx: usize) -> Option<MysqlValue<'_>> {
+        self.data[idx].bytes().map(MysqlValue::new)
     }
 }
 
@@ -246,11 +252,4 @@ fn known_buffer_size_for_ffi_type(tpe: ffi::enum_field_types) -> Option<usize> {
 fn is_field_unsigned(field: &ffi::MYSQL_FIELD) -> ffi::my_bool {
     const UNSIGNED_FLAG: libc::c_uint = 32;
     (field.flags & UNSIGNED_FLAG > 0) as _
-}
-
-fn is_signed_to_my_bool(sign: IsSigned) -> ffi::my_bool {
-    match sign {
-        IsSigned::Signed => false as _,
-        IsSigned::Unsigned => true as _,
-    }
 }

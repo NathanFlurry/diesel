@@ -23,11 +23,87 @@ for Rust libraries in [RFC #1105](https://github.com/rust-lang/rfcs/blob/master/
   in runtime errors if multiple types were involved (for example, `interval *
   (integer + 1)`)
 
+### Added
+
+* `NonAggregate` can now be derived for simple cases.
+* `Connection` and `SimpleConnection` traits are implemented for a broader range
+  of `r2d2::PooledConnection<M>` types when the `r2d2` feature is enabled.
+
+* Added `DatabaseErrorKind::ReadOnlyTransaction` to allow applications to
+  handle errors caused by writing when only allowed to read.
+
+* All expression methods can now be called on expressions of nullable types.
+
+* Added `BoxedSqlQuery`. This allows users to do a variable amount of `.sql` or
+
+  `.bind` calls without changing the underlying type.
+
+* Added `.sql` to `SqlQuery` and `UncheckedBind` to allow appending SQL code to
+
+  an existing query.
+
+
+
+### Removed
+
+* All previously deprecated items have been removed.
+
+### Changed
+
+* The way [the `Backend` trait][backend-2-0-0] handles its `RawValue` type has
+  been changed to allow non-references. Users of this type (e.g. code written
+  `&DB::RawValue` or `&<DB as Backend>::RawValue>`) should use
+  [`backend::RawValue<DB>`][raw-value-2-0-0] instead. Implementors of `Backend`
+  should check the relevant section of [the migration guide][2-0-migration].
+
+[backend-2-0-0]: http://docs.diesel.rs/diesel/backend/trait.Backend.html
+[raw-value-2-0-0]: http://docs.diesel.rs/diesel/backend/type.RawValue.html
+
+* The type metadata for MySQL has been changed to include sign information. If
+  you are implementing `HasSqlType` for `Mysql` manually, or manipulating a
+  `Mysql::TypeMetadata`, you will need to take the new struct
+  `MysqlTypeMetadata` instead.
+
+* The minimal officially supported rustc version is now 1.36.0
+
+* The `RawValue` types for the `Mysql` and `Postgresql` backend where changed
+  from `[u8]` to distinct opaque types. If you used the concrete `RawValue` type
+  somewhere you need to change it to `mysql::MysqlValue` or `pg::PgValue`.
+  For the postgres backend additionally type information where added to the `RawValue`
+  type. This allows to dynamically deserialize `RawValues` in container types.
+
+### Fixed
+
+* Many types were incorrectly considered non-aggregate when they should not
+  have been. All types in Diesel are now correctly only considered
+  non-aggregate if their parts are.
+
+### Deprecated
+
+* `diesel_(prefix|postfix|infix)_operator!` have been deprecated. These macros
+  are now available without the `diesel_` prefix. With Rust 2018 they can be
+  invoked as `diesel::infix_operator!` instead.
+
+
+
+[2-0-migration]: FIXME write a migration guide
+
+## [1.4.2] - 2019-03-19
+
+### Fixed
+
+* Parenthesis are now inserted around all mathematical operations. This means
+  that `(2.into_sql() + 3) * 4` will correctly evaluate to 20 as expected.
+  Previously we would generate SQL that evaluated to 14. This could even result
+  in runtime errors if multiple types were involved (for example, `interval *
+  (integer + 1)`)
+
 ## [1.4.1] - 2019-01-24
 
 ### Fixed
 
-* This release fixes a minor memory safety issue in SQLite. This bug would only occur in an error handling branch that should never occur in practice.
+* This release fixes a minor memory safety issue in SQLite. This bug would only
+  occur in an error handling branch that should never occur in practice.
 
 ## [1.4.0] - 2019-01-20
 

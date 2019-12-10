@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::io::Write;
 
-use backend::Backend;
+use backend::{self, Backend, BinaryRawValue};
 use deserialize::{self, FromSql, FromSqlRow, Queryable};
 use serialize::{self, IsNull, Output, ToSql};
 use sql_types::{self, BigInt, Binary, Bool, Double, Float, Integer, NotNull, SmallInt, Text};
@@ -107,7 +107,7 @@ where
     DB: Backend,
     *const str: FromSql<ST, DB>,
 {
-    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
+    fn from_sql(bytes: Option<backend::RawValue<DB>>) -> deserialize::Result<Self> {
         let str_ptr = <*const str as FromSql<ST, DB>>::from_sql(bytes)?;
         // We know that the pointer impl will never return null
         let string = unsafe { &*str_ptr };
@@ -120,10 +120,14 @@ where
 /// impl in terms of `String`, but don't want to allocate. We have to return a
 /// raw pointer instead of a reference with a lifetime due to the structure of
 /// `FromSql`
-impl<DB: Backend<RawValue = [u8]>> FromSql<sql_types::Text, DB> for *const str {
-    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
+impl<DB> FromSql<sql_types::Text, DB> for *const str
+where
+    DB: Backend + for<'a> BinaryRawValue<'a>,
+{
+    fn from_sql(value: Option<::backend::RawValue<DB>>) -> deserialize::Result<Self> {
         use std::str;
-        let string = str::from_utf8(not_none!(bytes))?;
+        let value = not_none!(value);
+        let string = str::from_utf8(DB::as_bytes(value))?;
         Ok(string as *const _)
     }
 }
@@ -151,7 +155,7 @@ where
     DB: Backend,
     *const [u8]: FromSql<ST, DB>,
 {
-    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
+    fn from_sql(bytes: Option<backend::RawValue<DB>>) -> deserialize::Result<Self> {
         let slice_ptr = <*const [u8] as FromSql<ST, DB>>::from_sql(bytes)?;
         // We know that the pointer impl will never return null
         let bytes = unsafe { &*slice_ptr };
@@ -164,9 +168,12 @@ where
 /// impl in terms of `Vec<u8>`, but don't want to allocate. We have to return a
 /// raw pointer instead of a reference with a lifetime due to the structure of
 /// `FromSql`
-impl<DB: Backend<RawValue = [u8]>> FromSql<sql_types::Binary, DB> for *const [u8] {
-    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
-        Ok(not_none!(bytes) as *const _)
+impl<DB> FromSql<sql_types::Binary, DB> for *const [u8]
+where
+    DB: Backend + for<'a> BinaryRawValue<'a>,
+{
+    fn from_sql(bytes: Option<backend::RawValue<DB>>) -> deserialize::Result<Self> {
+        Ok(DB::as_bytes(not_none!(bytes)) as *const _)
     }
 }
 
@@ -207,7 +214,7 @@ where
     DB: Backend,
     T::Owned: FromSql<ST, DB>,
 {
-    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
+    fn from_sql(bytes: Option<backend::RawValue<DB>>) -> deserialize::Result<Self> {
         T::Owned::from_sql(bytes).map(Cow::Owned)
     }
 }

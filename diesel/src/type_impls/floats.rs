@@ -2,14 +2,18 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::error::Error;
 use std::io::prelude::*;
 
-use backend::Backend;
+use backend::{Backend, BinaryRawValue};
 use deserialize::{self, FromSql};
 use serialize::{self, IsNull, Output, ToSql};
 use sql_types;
 
-impl<DB: Backend<RawValue = [u8]>> FromSql<sql_types::Float, DB> for f32 {
-    fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
-        let mut bytes = not_none!(bytes);
+impl<DB> FromSql<sql_types::Float, DB> for f32
+where
+    DB: Backend + for<'a> BinaryRawValue<'a>,
+{
+    fn from_sql(value: Option<::backend::RawValue<DB>>) -> deserialize::Result<Self> {
+        let value = not_none!(value);
+        let mut bytes = DB::as_bytes(value);
         debug_assert!(
             bytes.len() <= 4,
             "Received more than 4 bytes while decoding \
@@ -29,9 +33,13 @@ impl<DB: Backend> ToSql<sql_types::Float, DB> for f32 {
     }
 }
 
-impl<DB: Backend<RawValue = [u8]>> FromSql<sql_types::Double, DB> for f64 {
-    fn from_sql(bytes: Option<&[u8]>) -> deserialize::Result<Self> {
-        let mut bytes = not_none!(bytes);
+impl<DB> FromSql<sql_types::Double, DB> for f64
+where
+    DB: Backend + for<'a> BinaryRawValue<'a>,
+{
+    fn from_sql(value: Option<::backend::RawValue<DB>>) -> deserialize::Result<Self> {
+        let value = not_none!(value);
+        let mut bytes = DB::as_bytes(value);
         debug_assert!(
             bytes.len() <= 8,
             "Received more than 8 bytes while decoding \

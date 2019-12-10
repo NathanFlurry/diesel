@@ -23,10 +23,11 @@ macro_rules! __diesel_column {
             DB: $crate::backend::Backend,
             <$table as QuerySource>::FromClause: QueryFragment<DB>,
         {
-            fn walk_ast(&self, mut out: $crate::query_builder::AstPass<DB>) -> $crate::result::QueryResult<()> {
-                $table.from_clause().walk_ast(out.reborrow())?;
-                out.push_sql(".");
-                out.push_identifier($sql_name)
+            #[allow(non_snake_case)]
+            fn walk_ast(&self, mut __out: $crate::query_builder::AstPass<DB>) -> $crate::result::QueryResult<()> {
+                $table.from_clause().walk_ast(__out.reborrow())?;
+                __out.push_sql(".");
+                __out.push_identifier($sql_name)
             }
         }
 
@@ -808,9 +809,10 @@ macro_rules! __diesel_table_impl {
                 impl<DB: Backend> QueryFragment<DB> for star where
                     <table as QuerySource>::FromClause: QueryFragment<DB>,
                 {
-                    fn walk_ast(&self, mut out: AstPass<DB>) -> QueryResult<()> {
-                        table.from_clause().walk_ast(out.reborrow())?;
-                        out.push_sql(".*");
+                    #[allow(non_snake_case)]
+                    fn walk_ast(&self, mut __out: AstPass<DB>) -> QueryResult<()> {
+                        table.from_clause().walk_ast(__out.reborrow())?;
+                        __out.push_sql(".*");
                         Ok(())
                     }
                 }
@@ -928,13 +930,13 @@ macro_rules! __diesel_table_query_source_impl {
 ///
 /// * `child_table` is the Table with the Foreign key.
 ///
-/// So given the Table decaration from [Associations docs](http://docs.diesel.rs/diesel/associations/index.html)
+/// So given the Table decaration from [Associations docs](associations/index.html)
 ///
 /// * The parent table would be `User`
 /// * The child table would be `Post`
 /// * and the Foreign key would be `Post.user_id`
 ///
-/// For joins that do not explicitly use on clauses via [`JoinOnDsl`](http://docs.diesel.rs/diesel/prelude/trait.JoinOnDsl.html)
+/// For joins that do not explicitly use on clauses via [`JoinOnDsl`](prelude/trait.JoinOnDsl.html)
 /// the following on clause is generated implicitly:
 /// ```sql
 /// post JOIN users ON posts.user_id = users.id
@@ -1057,8 +1059,6 @@ macro_rules! not_none {
 // Utility macros which don't call any others need to come first.
 #[macro_use]
 mod internal;
-#[macro_use]
-mod query_id;
 #[macro_use]
 mod static_cond;
 #[macro_use]

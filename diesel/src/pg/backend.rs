@@ -3,9 +3,9 @@
 use byteorder::NetworkEndian;
 
 use super::query_builder::PgQueryBuilder;
-use super::PgMetadataLookup;
+use super::{PgMetadataLookup, PgValue};
 use backend::*;
-use prelude::Queryable;
+use deserialize::Queryable;
 use query_builder::bind_collector::RawBytesBindCollector;
 use sql_types::{Oid, TypeMetadata};
 
@@ -39,8 +39,11 @@ impl Queryable<(Oid, Oid), Pg> for PgTypeMetadata {
 impl Backend for Pg {
     type QueryBuilder = PgQueryBuilder;
     type BindCollector = RawBytesBindCollector<Pg>;
-    type RawValue = [u8];
     type ByteOrder = NetworkEndian;
+}
+
+impl<'a> HasRawValue<'a> for Pg {
+    type RawValue = PgValue<'a>;
 }
 
 impl TypeMetadata for Pg {

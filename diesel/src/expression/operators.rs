@@ -1,5 +1,3 @@
-#![cfg_attr(rustfmt, rustfmt_skip)] // https://github.com/rust-lang-nursery/rustfmt/issues/2755
-
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __diesel_operator_body {
@@ -63,7 +61,7 @@ macro_rules! __diesel_operator_body {
         expression_ty_params = ($($expression_ty_params:ident,)*),
         expression_bounds = ($($expression_bounds:tt)*),
     ) => {
-        #[derive(Debug, Clone, Copy, QueryId, DieselNumericOps)]
+        #[derive(Debug, Clone, Copy, QueryId, DieselNumericOps, NonAggregate)]
         #[doc(hidden)]
         pub struct $name<$($ty_param,)+> {
             $(pub(crate) $field_name: $ty_param,)+
@@ -81,11 +79,6 @@ macro_rules! __diesel_operator_body {
             $($expression_bounds)*
         {
             type SqlType = $return_ty;
-        }
-
-        impl<$($ty_param,)+> $crate::expression::NonAggregate for $name<$($ty_param,)+> where
-            $($ty_param: $crate::expression::NonAggregate,)+
-        {
         }
 
         impl<$($ty_param,)+ $($backend_ty_param,)*> $crate::query_builder::QueryFragment<$backend_ty>
@@ -165,22 +158,22 @@ macro_rules! __diesel_operator_to_sql {
 ///
 /// ```ignore
 /// // The SQL type will be boolean. The backend will not be constrained
-/// diesel_infix_operator!(Matches, " @@ ");
+/// infix_operator!(Matches, " @@ ");
 ///
 /// // Queries which try to execute `Contains` on a backend other than Pg
 /// // will fail to compile
-/// diesel_infix_operator!(Contains, " @> ", backend: Pg);
+/// infix_operator!(Contains, " @> ", backend: Pg);
 ///
 /// // The type of `Concat` will be `TsVector` rather than Bool
-/// diesel_infix_operator!(Concat, " || ", TsVector);
+/// infix_operator!(Concat, " || ", TsVector);
 ///
 /// // It is perfectly fine to have multiple operators with the same SQL.
 /// // Diesel will ensure that the queries are always unambiguous in which
 /// // operator applies
-/// diesel_infix_operator!(Or, " || ", TsQuery);
+/// infix_operator!(Or, " || ", TsQuery);
 ///
 /// // Specifying both the return types and the backend
-/// diesel_infix_operator!(And, " && ", TsQuery, backend: Pg);
+/// infix_operator!(And, " && ", TsQuery, backend: Pg);
 /// ```
 ///
 /// ## Example usage
@@ -192,7 +185,7 @@ macro_rules! __diesel_operator_to_sql {
 /// # fn main() {
 /// #     use schema::users::dsl::*;
 /// #     let connection = establish_connection();
-/// diesel_infix_operator!(MyEq, " = ");
+/// infix_operator!(MyEq, " = ");
 ///
 /// use diesel::expression::AsExpression;
 ///
@@ -210,13 +203,13 @@ macro_rules! __diesel_operator_to_sql {
 /// # }
 /// ```
 #[macro_export]
-macro_rules! diesel_infix_operator {
+macro_rules! infix_operator {
     ($name:ident, $operator:expr) => {
-        diesel_infix_operator!($name, $operator, $crate::sql_types::Bool);
+        infix_operator!($name, $operator, $crate::sql_types::Bool);
     };
 
     ($name:ident, $operator:expr, backend: $backend:ty) => {
-        diesel_infix_operator!($name, $operator, $crate::sql_types::Bool, backend: $backend);
+        infix_operator!($name, $operator, $crate::sql_types::Bool, backend: $backend);
     };
 
     ($name:ident, $operator:expr, $($return_ty:tt)::*) => {
@@ -246,22 +239,32 @@ macro_rules! diesel_infix_operator {
     };
 }
 
+#[macro_export]
+#[deprecated(since = "2.0.0", note = "use `diesel::infix_operator!` instead")]
+#[cfg(feature = "with-deprecated")]
+#[doc(hidden)]
+macro_rules! diesel_infix_operator {
+    ($($args:tt)*) => {
+        infix_operator!($($args)*);
+    }
+}
+
 /// Useful for libraries adding support for new SQL types. Apps should never
 /// need to call this.
 ///
-/// Similar to [`diesel_infix_operator!`], but the generated type will only take
+/// Similar to [`infix_operator!`], but the generated type will only take
 /// a single argument rather than two. The operator SQL will be placed after
-/// the single argument. See [`diesel_infix_operator!`] for example usage.
+/// the single argument. See [`infix_operator!`] for example usage.
 ///
-/// [`diesel_infix_operator!`]: macro.diesel_infix_operator.html
+/// [`infix_operator!`]: macro.infix_operator.html
 #[macro_export]
-macro_rules! diesel_postfix_operator {
+macro_rules! postfix_operator {
     ($name:ident, $operator:expr) => {
-        diesel_postfix_operator!($name, $operator, $crate::sql_types::Bool);
+        postfix_operator!($name, $operator, $crate::sql_types::Bool);
     };
 
     ($name:ident, $operator:expr, backend: $backend:ty) => {
-        diesel_postfix_operator!($name, $operator, $crate::sql_types::Bool, backend: $backend);
+        postfix_operator!($name, $operator, $crate::sql_types::Bool, backend: $backend);
     };
 
     ($name:ident, $operator:expr, $return_ty:ty) => {
@@ -289,24 +292,34 @@ macro_rules! diesel_postfix_operator {
             backend_ty = $backend,
         );
     };
+}
+
+#[macro_export]
+#[deprecated(since = "2.0.0", note = "use `diesel::postfix_operator!` instead")]
+#[cfg(feature = "with-deprecated")]
+#[doc(hidden)]
+macro_rules! diesel_postfix_operator {
+    ($($args:tt)*) => {
+        postfix_operator!($($args)*);
+    }
 }
 
 /// Useful for libraries adding support for new SQL types. Apps should never
 /// need to call this.
 ///
-/// Similar to [`diesel_infix_operator!`], but the generated type will only take
+/// Similar to [`infix_operator!`], but the generated type will only take
 /// a single argument rather than two. The operator SQL will be placed before
-/// the single argument. See [`diesel_infix_operator!`] for example usage.
+/// the single argument. See [`infix_operator!`] for example usage.
 ///
-/// [`diesel_infix_operator!`]: macro.diesel_infix_operator.html
+/// [`infix_operator!`]: macro.infix_operator.html
 #[macro_export]
-macro_rules! diesel_prefix_operator {
+macro_rules! prefix_operator {
     ($name:ident, $operator:expr) => {
-        diesel_prefix_operator!($name, $operator, $crate::sql_types::Bool);
+        prefix_operator!($name, $operator, $crate::sql_types::Bool);
     };
 
     ($name:ident, $operator:expr, backend: $backend:ty) => {
-        diesel_prefix_operator!($name, $operator, $crate::sql_types::Bool, backend: $backend);
+        prefix_operator!($name, $operator, $crate::sql_types::Bool, backend: $backend);
     };
 
     ($name:ident, $operator:expr, $return_ty:ty) => {
@@ -336,27 +349,36 @@ macro_rules! diesel_prefix_operator {
     };
 }
 
-diesel_infix_operator!(Concat, " || ", ReturnBasedOnArgs);
-diesel_infix_operator!(And, " AND ");
-diesel_infix_operator!(Between, " BETWEEN ");
-diesel_infix_operator!(Escape, " ESCAPE ");
-diesel_infix_operator!(Eq, " = ");
-diesel_infix_operator!(Gt, " > ");
-diesel_infix_operator!(GtEq, " >= ");
-diesel_infix_operator!(Like, " LIKE ");
-diesel_infix_operator!(Lt, " < ");
-diesel_infix_operator!(LtEq, " <= ");
-diesel_infix_operator!(NotBetween, " NOT BETWEEN ");
-diesel_infix_operator!(NotEq, " != ");
-diesel_infix_operator!(NotLike, " NOT LIKE ");
-diesel_infix_operator!(Or, " OR ");
+#[macro_export]
+#[deprecated(since = "2.0.0", note = "use `diesel::prefix_operator!` instead")]
+#[cfg(feature = "with-deprecated")]
+#[doc(hidden)]
+macro_rules! diesel_prefix_operator {
+    ($($args:tt)*) => {
+        prefix_operator!($($args)*);
+    }
+}
 
-diesel_postfix_operator!(IsNull, " IS NULL");
-diesel_postfix_operator!(IsNotNull, " IS NOT NULL");
-diesel_postfix_operator!(Asc, " ASC", ());
-diesel_postfix_operator!(Desc, " DESC", ());
+infix_operator!(And, " AND ");
+infix_operator!(Between, " BETWEEN ");
+infix_operator!(Escape, " ESCAPE ");
+infix_operator!(Eq, " = ");
+infix_operator!(Gt, " > ");
+infix_operator!(GtEq, " >= ");
+infix_operator!(Like, " LIKE ");
+infix_operator!(Lt, " < ");
+infix_operator!(LtEq, " <= ");
+infix_operator!(NotBetween, " NOT BETWEEN ");
+infix_operator!(NotEq, " != ");
+infix_operator!(NotLike, " NOT LIKE ");
+infix_operator!(Or, " OR ");
 
-diesel_prefix_operator!(Not, "NOT ");
+postfix_operator!(IsNull, " IS NULL");
+postfix_operator!(IsNotNull, " IS NOT NULL");
+postfix_operator!(Asc, " ASC", ());
+postfix_operator!(Desc, " DESC", ());
+
+prefix_operator!(Not, "NOT ");
 
 use insertable::{ColumnInsertValue, Insertable};
 use query_builder::ValuesClause;
@@ -382,5 +404,46 @@ where
 
     fn values(self) -> Self::Values {
         Eq::new(self.left, &self.right).values()
+    }
+}
+
+#[derive(Debug, Clone, Copy, QueryId, DieselNumericOps, NonAggregate)]
+#[doc(hidden)]
+pub struct Concat<L, R> {
+    pub(crate) left: L,
+    pub(crate) right: R,
+}
+
+impl<L, R> Concat<L, R> {
+    pub fn new(left: L, right: R) -> Self {
+        Self { left, right }
+    }
+}
+
+impl<L, R, ST> ::expression::Expression for Concat<L, R>
+where
+    L: ::expression::Expression<SqlType = ST>,
+    R: ::expression::Expression<SqlType = ST>,
+{
+    type SqlType = ST;
+}
+
+impl_selectable_expression!(Concat<L, R>);
+
+impl<L, R, DB> ::query_builder::QueryFragment<DB> for Concat<L, R>
+where
+    L: ::query_builder::QueryFragment<DB>,
+    R: ::query_builder::QueryFragment<DB>,
+    DB: ::backend::Backend,
+{
+    fn walk_ast(&self, mut out: ::query_builder::AstPass<DB>) -> ::result::QueryResult<()> {
+        // Those brackets are required because mysql is broken
+        // https://github.com/diesel-rs/diesel/issues/2133#issuecomment-517432317
+        out.push_sql("(");
+        self.left.walk_ast(out.reborrow())?;
+        out.push_sql(" || ");
+        self.right.walk_ast(out.reborrow())?;
+        out.push_sql(")");
+        Ok(())
     }
 }

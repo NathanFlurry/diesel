@@ -2,26 +2,30 @@ extern crate pq_sys;
 
 use self::pq_sys::*;
 use std::ffi::{CStr, CString};
+use std::num::NonZeroU32;
 use std::os::raw as libc;
 use std::{slice, str};
 
 use super::raw::RawResult;
 use super::row::PgRow;
+use pg::PgConnection;
 use result::{DatabaseErrorInformation, DatabaseErrorKind, Error, QueryResult};
 
-pub struct PgResult {
+pub struct PgResult<'a> {
     internal_result: RawResult,
+    pub(crate) connection: &'a PgConnection,
 }
 
-impl PgResult {
+impl<'a> PgResult<'a> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(internal_result: RawResult) -> QueryResult<Self> {
+    pub fn new(internal_result: RawResult, connection: &'a PgConnection) -> QueryResult<Self> {
         use self::ExecStatusType::*;
 
         let result_status = unsafe { PQresultStatus(internal_result.as_ptr()) };
         match result_status {
             PGRES_COMMAND_OK | PGRES_TUPLES_OK => Ok(PgResult {
-                internal_result: internal_result,
+                internal_result,
+                connection,
             }),
             PGRES_EMPTY_QUERY => {
                 let error_message = "Received an empty query".to_string();
@@ -39,6 +43,9 @@ impl PgResult {
                         }
                         Some(error_codes::SERIALIZATION_FAILURE) => {
                             DatabaseErrorKind::SerializationFailure
+                        }
+                        Some(error_codes::READ_ONLY_TRANSACTION) => {
+                            DatabaseErrorKind::ReadOnlyTransaction
                         }
                         _ => DatabaseErrorKind::__Unknown,
                     };
@@ -92,6 +99,16 @@ impl PgResult {
                 row_idx as libc::c_int,
                 col_idx as libc::c_int,
             )
+        }
+    }
+
+    pub fn column_type(&self, col_idx: usize) -> NonZeroU32 {
+        unsafe {
+            NonZeroU32::new(PQftype(
+                self.internal_result.as_ptr(),
+                col_idx as libc::c_int,
+            ))
+            .expect("Oid's aren't zero")
         }
     }
 
@@ -167,4 +184,5 @@ mod error_codes {
     pub const UNIQUE_VIOLATION: &str = "23505";
     pub const FOREIGN_KEY_VIOLATION: &str = "23503";
     pub const SERIALIZATION_FAILURE: &str = "40001";
+    pub const READ_ONLY_TRANSACTION: &str = "25006";
 }

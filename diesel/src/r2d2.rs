@@ -18,7 +18,7 @@ use std::marker::PhantomData;
 
 use backend::UsesAnsiSavepointSyntax;
 use connection::{AnsiTransactionManager, SimpleConnection};
-use deserialize::QueryableByName;
+use deserialize::{Queryable, QueryableByName};
 use prelude::*;
 use query_builder::{AsQuery, QueryFragment, QueryId};
 use sql_types::HasSqlType;
@@ -75,9 +75,36 @@ impl ::std::error::Error for Error {
     }
 }
 
+/// A trait indicating a connection could be used inside a r2d2 pool
+pub trait R2D2Connection: Connection {
+    /// Check if a connection is still valid
+    fn ping(&self) -> QueryResult<()>;
+}
+
+#[cfg(feature = "postgres")]
+impl R2D2Connection for ::pg::PgConnection {
+    fn ping(&self) -> QueryResult<()> {
+        self.execute("SELECT 1").map(|_| ())
+    }
+}
+
+#[cfg(feature = "mysql")]
+impl R2D2Connection for ::mysql::MysqlConnection {
+    fn ping(&self) -> QueryResult<()> {
+        self.execute("SELECT 1").map(|_| ())
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl R2D2Connection for ::sqlite::SqliteConnection {
+    fn ping(&self) -> QueryResult<()> {
+        self.execute("SELECT 1").map(|_| ())
+    }
+}
+
 impl<T> ManageConnection for ConnectionManager<T>
 where
-    T: Connection + Send + 'static,
+    T: R2D2Connection + Send + 'static,
 {
     type Connection = T;
     type Error = Error;
@@ -87,9 +114,7 @@ where
     }
 
     fn is_valid(&self, conn: &mut T) -> Result<(), Error> {
-        conn.execute("SELECT 1")
-            .map(|_| ())
-            .map_err(Error::QueryError)
+        conn.ping().map_err(Error::QueryError)
     }
 
     fn has_broken(&self, _conn: &mut T) -> bool {
@@ -97,22 +122,25 @@ where
     }
 }
 
-impl<T> SimpleConnection for PooledConnection<ConnectionManager<T>>
+impl<M> SimpleConnection for PooledConnection<M>
 where
-    T: Connection + Send + 'static,
+    M: ManageConnection,
+    M::Connection: R2D2Connection + Send + 'static,
 {
     fn batch_execute(&self, query: &str) -> QueryResult<()> {
         (&**self).batch_execute(query)
     }
 }
 
-impl<C> Connection for PooledConnection<ConnectionManager<C>>
+impl<M> Connection for PooledConnection<M>
 where
-    C: Connection<TransactionManager = AnsiTransactionManager> + Send + 'static,
-    C::Backend: UsesAnsiSavepointSyntax,
+    M: ManageConnection,
+    M::Connection:
+        Connection<TransactionManager = AnsiTransactionManager> + R2D2Connection + Send + 'static,
+    <M::Connection as Connection>::Backend: UsesAnsiSavepointSyntax,
 {
-    type Backend = C::Backend;
-    type TransactionManager = C::TransactionManager;
+    type Backend = <M::Connection as Connection>::Backend;
+    type TransactionManager = <M::Connection as Connection>::TransactionManager;
 
     fn establish(_: &str) -> ConnectionResult<Self> {
         Err(ConnectionError::BadConnection(String::from(

@@ -1,7 +1,6 @@
 use std::error::Error;
 
 use diesel::dsl::sql;
-use diesel::sqlite::{Sqlite, SqliteConnection};
 use diesel::*;
 
 use super::data_structures::*;
@@ -78,7 +77,8 @@ pub fn load_foreign_key_constraints(
                     ForeignKeyConstraint {
                         child_table: child_table.clone(),
                         parent_table,
-                        foreign_key: row.foreign_key,
+                        foreign_key: row.foreign_key.clone(),
+                        foreign_key_rust_name: row.foreign_key,
                         primary_key: row.primary_key,
                     }
                 })
@@ -96,6 +96,7 @@ pub fn get_table_data(
     sql::<pragma_table_info::SqlType>(&query).load(conn)
 }
 
+#[derive(Queryable)]
 struct FullTableInfo {
     _cid: i32,
     name: String,
@@ -105,21 +106,7 @@ struct FullTableInfo {
     primary_key: bool,
 }
 
-impl Queryable<pragma_table_info::SqlType, Sqlite> for FullTableInfo {
-    type Row = (i32, String, String, bool, Option<String>, bool);
-
-    fn build(row: Self::Row) -> Self {
-        FullTableInfo {
-            _cid: row.0,
-            name: row.1,
-            _type_name: row.2,
-            _not_null: row.3,
-            _dflt_value: row.4,
-            primary_key: row.5,
-        }
-    }
-}
-
+#[derive(Queryable)]
 struct ForeignKeyListRow {
     _id: i32,
     _seq: i32,
@@ -129,23 +116,6 @@ struct ForeignKeyListRow {
     _on_update: String,
     _on_delete: String,
     _match: String,
-}
-
-impl Queryable<pragma_foreign_key_list::SqlType, Sqlite> for ForeignKeyListRow {
-    type Row = (i32, i32, String, String, String, String, String, String);
-
-    fn build(row: Self::Row) -> Self {
-        ForeignKeyListRow {
-            _id: row.0,
-            _seq: row.1,
-            parent_table: row.2,
-            foreign_key: row.3,
-            primary_key: row.4,
-            _on_update: row.5,
-            _on_delete: row.6,
-            _match: row.7,
-        }
-    }
 }
 
 pub fn get_primary_keys(conn: &SqliteConnection, table: &TableName) -> QueryResult<Vec<String>> {
@@ -321,12 +291,14 @@ fn load_foreign_key_constraints_loads_foreign_keys() {
         child_table: table_2.clone(),
         parent_table: table_1.clone(),
         foreign_key: "fk_one".into(),
+        foreign_key_rust_name: "fk_one".into(),
         primary_key: "id".into(),
     };
     let fk_two = ForeignKeyConstraint {
         child_table: table_3.clone(),
         parent_table: table_2.clone(),
         foreign_key: "fk_two".into(),
+        foreign_key_rust_name: "fk_two".into(),
         primary_key: "id".into(),
     };
     let fks = load_foreign_key_constraints(&connection, None).unwrap();

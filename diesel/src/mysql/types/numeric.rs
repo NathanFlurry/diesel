@@ -5,7 +5,7 @@ pub mod bigdecimal {
     use self::bigdecimal::BigDecimal;
     use std::io::prelude::*;
 
-    use backend::Backend;
+    use backend;
     use deserialize::{self, FromSql};
     use mysql::Mysql;
     use serialize::{self, IsNull, Output, ToSql};
@@ -15,12 +15,12 @@ pub mod bigdecimal {
         fn to_sql<W: Write>(&self, out: &mut Output<W, Mysql>) -> serialize::Result {
             write!(out, "{}", *self)
                 .map(|_| IsNull::No)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
     }
 
     impl FromSql<Numeric, Mysql> for BigDecimal {
-        fn from_sql(bytes: Option<&<Mysql as Backend>::RawValue>) -> deserialize::Result<Self> {
+        fn from_sql(bytes: Option<backend::RawValue<Mysql>>) -> deserialize::Result<Self> {
             let bytes_ptr = <*const [u8] as FromSql<Binary, Mysql>>::from_sql(bytes)?;
             let bytes = unsafe { &*bytes_ptr };
             BigDecimal::parse_bytes(bytes, 10)
