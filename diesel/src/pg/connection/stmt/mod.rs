@@ -24,6 +24,9 @@ impl Statement {
         conn: &RawConnection,
         param_data: &Vec<Option<Vec<u8>>>,
     ) -> QueryResult<PgResult> {
+        let sql_span = debug_span!("execute", sql_hash = self.sql_hash.as_str(), name = ?self.name);
+        let _guard = sql_span.enter();
+
         let params_pointer = param_data
             .iter()
             .map(|data| {
@@ -36,18 +39,16 @@ impl Statement {
             .iter()
             .map(|data| data.as_ref().map(|d| d.len() as libc::c_int).unwrap_or(0))
             .collect::<Vec<_>>();
-        let internal_res = debug_span!("execute", sql_hash = self.sql_hash.as_str(), name = ?self.name).in_scope(|| {
-            unsafe {
-                conn.exec_prepared(
-                    self.name.as_ptr(),
-                    params_pointer.len() as libc::c_int,
-                    params_pointer.as_ptr(),
-                    param_lengths.as_ptr(),
-                    self.param_formats.as_ptr(),
-                    1,
-                )
-            }
-        });
+        let internal_res = unsafe {
+            conn.exec_prepared(
+                self.name.as_ptr(),
+                params_pointer.len() as libc::c_int,
+                params_pointer.as_ptr(),
+                param_lengths.as_ptr(),
+                self.param_formats.as_ptr(),
+                1,
+            )
+        };
 
         PgResult::new(internal_res?)
     }
