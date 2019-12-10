@@ -24,6 +24,10 @@ impl Statement {
         conn: &'a PgConnection,
         param_data: &Vec<Option<Vec<u8>>>,
     ) -> QueryResult<PgResult<'a>> {
+        // Measure the operation
+        let exec_span = debug_span!("execute", sql_hash = self.sql_hash.as_str(), name = ?self.name);  // NOTE: `.in_span`
+        let _guard = exec_span.enter();
+
         let params_pointer = param_data
             .iter()
             .map(|data| {
@@ -36,18 +40,16 @@ impl Statement {
             .iter()
             .map(|data| data.as_ref().map(|d| d.len() as libc::c_int).unwrap_or(0))
             .collect::<Vec<_>>();
-        let internal_res = debug_span!("execute", sql_hash = self.sql_hash.as_str(), name = ?self.name).in_scope(|| {
-            unsafe {
-                conn.raw_connection.exec_prepared(
-                    self.name.as_ptr(),
-                    params_pointer.len() as libc::c_int,
-                    params_pointer.as_ptr(),
-                    param_lengths.as_ptr(),
-                    self.param_formats.as_ptr(),
-                    1,
-                )
-            }
-        });
+        let internal_res = unsafe {
+            conn.raw_connection.exec_prepared(
+                self.name.as_ptr(),
+                params_pointer.len() as libc::c_int,
+                params_pointer.as_ptr(),
+                param_lengths.as_ptr(),
+                self.param_formats.as_ptr(),
+                1,
+            )
+        };
 
         PgResult::new(internal_res?, conn)
     }
