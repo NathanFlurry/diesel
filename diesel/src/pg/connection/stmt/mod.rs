@@ -66,7 +66,7 @@ impl Statement {
         let sql_hash = format!("{:?}", hasher.finish());
 
         // info!(target: "prepare", sql, sql_hash = sql_hash.as_str(), ?param_types, ?name);
-        info!(target: "prepare");
+        info!("prepare");
 
         let name = CString::new(name.unwrap_or(""))?;
         let sql = CString::new(sql)?;
